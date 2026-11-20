@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hoàng Hà · Phố bên hồ</title>
+  <style>
+* { box-sizing:border-box }
+:root { color:#fcf7e4; font:16px/1.5 "Segoe UI",system-ui,sans-serif; --ink:#192e28; --lime:#deefa4 }
+body { margin:0; background:var(--ink) }
+main,.world { position:fixed; inset:0; overflow:hidden }
+canvas { display:block; position:absolute; image-rendering:pixelated; touch-action:manipulation; cursor:crosshair }
+header,footer { position:absolute; z-index:1; left:max(12px,env(safe-area-inset-left)); right:max(12px,env(safe-area-inset-right)); display:flex; gap:8px; justify-content:space-between; align-items:center; pointer-events:none }
+header { top:max(12px,env(safe-area-inset-top)) }
+footer { bottom:max(12px,env(safe-area-inset-bottom)) }
+header>*,footer>* { pointer-events:auto }
+h1,footer p,button,.link { margin:0; padding:8px 13px; color:#fcf7e4; background:var(--ink); border:2px solid #0b211b; box-shadow:3px 3px #142c2250 }
+h1 { font: bold clamp(17px,2.3vw,26px)/1.3 monospace }
+h1 span { color:var(--lime); font-size:.73em }
+button,.link { font-weight:600;line-height:1.35; font-family:inherit; font-size:1rem; cursor:pointer; text-decoration:none }
+button:hover,.link:hover { background:#39533f }
+button:focus-visible,a:focus-visible { outline:3px solid #efa73a; outline-offset:2px }
+button:disabled { display:none }
+nav { display:flex; gap:6px }
+dialog { padding:0; width:min(860px,94vw); max-height:88dvh; border:4px solid var(--ink); color:#1a2c24; background:#faf9ed; box-shadow:8px 8px #10231955 }
+dialog::backdrop { background:#0b1c198a }
+.banner { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px; background:var(--ink); color:#fffbe4; font:bold 1.3rem monospace }
+.banner button { border-color:#8ca38e }
+.layout { display:grid; grid-template-columns:minmax(145px,26%) 1fr; min-height:260px }
+#sections { display:flex; flex-direction:column; background:#f9f9ef; align-items:stretch; gap:0 }
+#sections button { border:0; border-radius:0; text-align:left; padding:13px 18px; color:#233b30; background:transparent; box-shadow:none }
+#sections button[aria-current=true] { background:#e3e9d8; box-shadow:inset 4px 0 #408462; font-weight:bold }
+article { background:#e3e9d8; padding:clamp(18px,4vw,40px); overflow-wrap:anywhere }
+article h2 { margin:0 0 12px; line-height:1.2 }
+article p { margin:0 0 20px }
+.link { display:inline-block }
+#assetError,#notice { position:fixed; z-index:2; left:12px; bottom:68px; max-width:90vw; background:var(--ink); padding:8px }
+#notice:empty,[hidden] { display:none!important }
+@media(max-width:600px) {
+ header,footer { flex-wrap:wrap }
+ h1 span { display:none }
+ header button,footer p { font-size:.86rem }
+ .layout { display:block }
+ #sections { flex-direction:row; flex-wrap:wrap; padding:4px }
+ #sections button { padding:8px }
+}
+#map{top:0;left:0}#overview{position:static;width:100%;height:auto;display:block;cursor:default}
+.guideBody{padding:16px;color:var(--ink)}.guideBody p{margin:8px 0}#stops{display:flex;flex-wrap:wrap;gap:5px}
+#extra>button{margin-top:12px}#extra img{max-width:100%;background:#b7cab3}#extra audio,#extra iframe{width:100%;border:0;margin-top:12px}#extra iframe{aspect-ratio:16/9}
+.gamegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:240px;margin:10px 0}.gamegrid button{font-size:20px;height:42px;padding:0}.star{background:#ffdf75;color:#1d312a}
+@media(max-width:480px){header{align-items:flex-start}header button{padding:7px}footer small{font-size:.76rem}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Hoàng Hà <span>/ Phố bên hồ</span></h1>
+    <nav aria-label="Công cụ"><button data-place="0">Hồ sơ</button><button id="atlas">Bản đồ</button><button id="full">Toàn màn hình</button></nav>
+  </header>
+
+  <div class="world">
+    <canvas id="map" width="1600" height="900" tabindex="0"
+      aria-label="Bản đồ tương tác. Di chuyển bằng phím mũi tên hoặc WASD. Nhấn E ở cửa để mở.">
+    </canvas>
+  </div>
+
+  <footer>
+    <p><strong id="district">Phố bên hồ</strong><br><small>WASD / phím mũi tên · Chạm đường để đi</small></p>
+    <button id="interact" disabled>Đi đến một cánh cửa</button>
+  </footer>
+  <p id="assetError" hidden>Hãy đặt ảnh <code>nhan-vat-pixel-4-huong.png</code> cùng thư mục với file HTML để hiện nhân vật.</p>
+</main>
+
+<p id="notice" role="status"></p>
+<dialog id="panel" aria-labelledby="panelTitle">
+  <div class="banner">Hồ sơ Hoàng Hà <button id="closePanel">Đóng</button></div>
+  <div class="layout"><nav id="sections" aria-label="Mục hồ sơ"></nav>
+    <article><h2 id="panelTitle"></h2><p id="panelText"></p><a class="link" id="panelLink" hidden></a><div id="extra"></div></article>
+  </div>
+</dialog>
+
+<dialog id="guide"><div class="banner">Bản đồ phố bên hồ <button id="dismiss">Đóng</button></div>
+<div class="guideBody"><canvas id="overview" width="480" height="270" aria-label="Sơ đồ toàn khu"></canvas><p>Chọn điểm đến để nhân vật tự đi theo đường.</p><div id="stops"></div></div></dialog>
+<script>
+  const canvas = document.querySelector("#map");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  // Sửa nội dung portfolio tại đây.
+  const places = [
+    {
+      x: 240, y: 248, label: "Giới thiệu", title: "Chào bạn, mình là Hoàng Hà.",
+      text: "Chào mừng bạn đến phố bên hồ của mình. Ghé căn nhà kính bên hồ để xem GitHub, hoặc đến bưu điện để liên hệ với mình."
+    },
+    {
+      x: 1010, y: 248, label: "GitHub", title: "Góc dự án",
+      text: "Bạn có thể khám phá các kho mã mình chia sẻ trên GitHub.",
+      href: "https://github.com/hha-lang", action: "Xem GitHub của Hà"
+    },
+    {
+      x: 1380, y: 678, label: "Liên hệ", title: "Liên hệ với Hà",
+      text: "Bạn có thể viết cho mình qua hi.hoangha.me@gmail.com.",
+      href: "mailto:hi.hoangha.me@gmail.com", action: "Viết email"
+    },
+    {
+      x: 610, y: 248, label: "Học vấn", title: "Học viện Nông nghiệp Việt Nam",
+      text: "Mình đang học tại Học viện Nông nghiệp Việt Nam (VNUA)."
+    },
+    {x:240,y:678,label:"Tiệm đĩa",title:"Góc nghe nhạc",text:"Lúc rảnh, mình thích nghe nhạc. Bài mình chọn cho tiệm đĩa là RATHER LIE của Playboi Carti & The Weeknd.",href:"https://www.youtube.com/watch?v=fYD7YsSRHOY",action:"Nghe trên YouTube"},
+    {x:610,y:678,label:"Arcade",title:"Phòng game",text:"Chơi game là một sở thích của mình. Thử bắt đủ 8 ngôi sao trong máy arcade nhé!"},
+    {x:1010,y:678,label:"Xưởng pixel",title:"Nhân vật của Hà",text:"Nhân vật trên bản đồ được vẽ theo ảnh của mình. Đây là bốn góc nhìn dùng khi đổi hướng."},
+    {x:1380,y:248,label:"Trạm kỹ thuật",title:"Bên trong phố bên hồ",text:"Cảnh phố được vẽ bằng Canvas. Khi bạn chọn một địa điểm trên bản đồ, nhân vật tìm đường qua các giao lộ và băng qua cầu để đến đúng cửa."}
+  ];
+
+  const sprite = new Image();
+  sprite.onerror = () => document.querySelector("#assetError").hidden = false;
+  sprite.src = "nhan-vat-pixel-4-huong.png";
+
+  // Vùng cắt theo thứ tự trong ảnh gốc: trước, trái, sau, phải.
+  // Tọa độ dùng tỉ lệ nên vẫn đúng khi đổi kích thước toàn bộ ảnh.
+  const views = [
+    [.079, .098, .148, .855], [.322, .098, .119, .855],
+    [.543, .098, .148, .855], [.789, .098, .119, .855]
+  ];
+  const player = { x: 320, y: 317, face: 0, step: 0 };
+  const keys = new Set();
+  const directions = {
+    arrowup: [0,-1], w: [0,-1], arrowdown: [0,1], s: [0,1],
+    arrowleft: [-1,0], a: [-1,0], arrowright: [1,0], d: [1,0]
+  };
+  const panel = document.querySelector("#panel");
+  const interact = document.querySelector("#interact");
+  let route = [];
+  let openOnArrival = -1;
+  let near = -1;
+
+  function rect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+  function polygon(points, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    points.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+    ctx.closePath();
+    ctx.fill();
+  }
+  function tree(x, y, size = 1) {
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.scale(size,size);
+    rect(-15,1,33,5,"#50765e");
+    rect(-3,-13,7,18,"#655644");
+    polygon([[-20,-9],[-20,-23],[-13,-23],[-13,-33],[-5,-33],
+      [-5,-39],[7,-39],[7,-33],[15,-33],[15,-25],[21,-25],
+      [21,-10],[13,-10],[13,-5],[-12,-5],[-12,-9]], "#286554");
+    rect(-12,-29,16,14,"#438568");
+    rect(-7,-34,12,8,"#61a477");
+    rect(6,-19,8,6,"#35765b");
+    ctx.restore();
+  }
+  function windowPane(x,y) {
+    rect(x,y,20,25,"#34534e");
+    rect(x+3,y+3,14,19,"#9ad6d0");
+    rect(x+9,y+3,2,19,"#548d89");
+    rect(x+2,y+24,17,3,"#e5cfaa");
+  }
+  function house(x, postOffice) {
+    rect(x-57,182,120,62,"#658266");
+    rect(x-54,171,108,68,postOffice ? "#d8ad7d" : "#edd5a0");
+    rect(x-54,171,108,8,"#b29173");
+    polygon([[x-65,172],[x-47,135],[x+47,135],[x+65,172]],
+      postOffice ? "#915b4d" : "#315d62");
+    polygon([[x-65,167],[x-47,132],[x+47,132],[x+63,167]],
+      postOffice ? "#c87659" : "#548389");
+    for(let i=0;i<3;i++) rect(x-47-i*4,140+i*9,94+i*8,2,
+      postOffice ? "#ac644e" : "#40737a");
+    windowPane(x-42,193);
+    windowPane(x+22,193);
+    rect(x-11,198,22,41,"#41524a");
+    rect(x-7,202,14,37,"#806b53");
+    rect(x+3,222,3,3,"#f9d983");
+    rect(x-16,238,32,4,"#ab9c80");
+  }
+  function glassHouse() {
+    const p = [[338,172],[352,130],[383,106],[417,106],[451,130],
+      [463,172],[452,220],[424,239],[376,239],[348,220]];
+    const palette = ["#9ec988","#d7dc81","#b4dbaf","#6cb0a0","#3d938d",
+      "#257e78","#408d73","#94af65","#bdd176","#7eb882"];
+    p.forEach((point,i) => {
+      polygon([point,p[(i+1)%p.length],[400,173]],palette[i]);
+      ctx.strokeStyle="#457968"; ctx.lineWidth=2; ctx.stroke();
+    });
+    rect(388,209,24,30,"#235e58");
+    rect(391,212,8,25,"#8dc9b3");
+    rect(401,212,8,25,"#71b5a6");
+  }
+  function label(x, text) {
+    ctx.font = "bold 13px system-ui";
+    const w = Math.ceil(ctx.measureText(text).width)+20;
+    rect(x-w/2,249,w,22,"#28453d");
+    ctx.fillStyle="#f4f3d5";
+    ctx.textAlign="center";
+    ctx.fillText(text,x,264);
+  }
+
+  // Vẽ cảnh tĩnh một lần, dùng lại ở mỗi khung hình.
+  const W=1600, H=900, river=810;
+  const lanes=[318,748], crossings=[115,710,1160,1490];
+  const nodes=[], roads=[];
+  function junction(x,y){
+    const existing=nodes.find(n=>n.x===x && n.y===y);
+    if(existing) return existing;
+    const node={x,y,edges:[]}; nodes.push(node); return node;
+  }
+  function road(a,b,width){
+    const length=Math.hypot(a.x-b.x,a.y-b.y);
+    a.edges.push([b,length]); b.edges.push([a,length]); roads.push({a,b,width});
+  }
+  for(const lane of lanes){
+    const stops=places.filter(p=>p.y+70===lane);
+    const xs=[42,1558,...crossings,...stops.map(p=>p.x)].sort((a,b)=>a-b);
+    xs.slice(1).forEach((x,i)=>road(junction(xs[i],lane),junction(x,lane),44));
+    for(const p of stops) road(junction(p.x,p.y),junction(p.x,lane),34);
+  }
+  for(const x of crossings) road(junction(x,318),junction(x,748),38);
+  function pave({a,b,width},color,edge=0){
+    const r=width/2+edge;
+    rect(Math.min(a.x,b.x)-r,Math.min(a.y,b.y)-r,Math.abs(a.x-b.x)+2*r,Math.abs(a.y-b.y)+2*r,color);
+  }
+  function sign(text,x,y){
+    ctx.font="bold 14px monospace";ctx.textAlign="center";
+    const w=ctx.measureText(text).width+22;rect(x-w/2,y-16,w,23,"#25443d");
+    ctx.fillStyle="#fff2c8";ctx.fillText(text,x,y);
+  }
+  function school(){
+    rect(-66,-79,132,77,"#f0d5a2");
+    polygon([[-75,-78],[0,-119],[75,-78]],"#436852");
+    rect(-61,-76,122,18,"#365848");ctx.font="bold 13px monospace";ctx.textAlign="center";
+    ctx.fillStyle="#fff2c9";ctx.fillText("V N U A",0,-62);
+    windowPane(-49,-43);windowPane(30,-43);rect(-11,-40,22,38,"#38574a");
+    for(const x of [-27,21])rect(x,-57,6,55,"#fff0c9");
+  }
+  function shop(p,i){
+    ctx.save();ctx.translate(p.x,p.y-5);
+    if(i===3) school();
+    else if(i===1){ctx.translate(-400,-239);glassHouse();ctx.translate(400,239)}
+    else {ctx.translate(0,-239);house(0,i===2||i===4);ctx.translate(0,239)}
+    if(i===4){
+      ctx.fillStyle="#273735";ctx.beginPath();ctx.arc(0,-82,24,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#eb966b";ctx.beginPath();ctx.arc(0,-82,8,0,Math.PI*2);ctx.fill();
+      rect(-2,-84,4,4,"#233536");
+    }
+    if(i===5||i===6||i===7) sign(["ARCADE","PIXEL","LAB"][i-5],0,-67);
+    sign(p.label,0,24);ctx.restore();
+  }
+  function paintTown(){
+    rect(0,0,W,H,"#90b988");
+    for(let i=0;i<4200;i++){
+      const x=(i*613)%W,y=(i*379+Math.floor(i/29)*43)%H;
+      rect(x,y,3,2,i%7?"#85ad7f":"#c1d18c");
+    }
+    rect(0,0,W,90,"#529d9c");rect(river-52,0,104,H,"#559e99");
+    for(let i=0;i<750;i++){
+      const x=i%2?(i*67)%W:river-49+(i*31)%90;
+      const y=i%2?(i*43)%84:(i*71)%H;
+      rect(x,y,7+i%12,2,"#8dc3b1");
+    }
+    for(const y of [130,862]) for(let x=30;x<W;x+=49){
+      if(Math.abs(x-river)>75)tree(x,y+(x%17),.88+(x%4)/10);
+    }
+    // Vườn hoa, sân gạch và các luống cây giữa hai phố.
+    for(const [x,y] of [[256,428],[493,465],[925,447],[1248,458]]){
+      rect(x-4,y-4,114,64,"#678e6d");rect(x,y,106,56,"#b3c983");
+      for(let r=0;r<3;r++)for(let c=0;c<8;c++){
+        rect(x+5+c*13,y+6+r*16,7,9,"#527c53");
+        rect(x+6+c*13,y+5+r*16,5,4,["#ffd28a","#e7a5a1","#f9edb3"][r]);
+      }
+    }
+    roads.forEach(r=>pave(r,"#a79b76",3));roads.forEach(r=>pave(r,"#e3d1aa"));
+    for(const y of lanes){
+      rect(river-58,y-22,116,44,"#bc9169");
+      for(let x=river-56;x<river+57;x+=8)rect(x,y-20,1,40,"#997557");
+      for(const edge of [-26,23]){rect(river-61,y+edge,122,4,"#705b47");
+        for(let x=river-60;x<=river+60;x+=24)rect(x,y+edge-5,5,11,"#84654b")}
+    }
+    places.forEach(shop);
+    for(const x of [48,410,887,1280,1530])for(const y of [227,652])tree(x,y,1.1);
+    sign("PHỐ BÊN HỒ",422,377);sign("VƯỜN ÂM THANH",425,805);
+    sign("BẾN XƯỞNG",1230,804);
+  }
+  paintTown();
+  const town = document.createElement("canvas");
+  town.width=W; town.height=H;
+  town.getContext("2d").drawImage(canvas,0,0);
+
+  function drawPlayer(moving) {
+    const bob = moving ? Math.abs(Math.sin(player.step))*2 : 0;
+    const x=Math.round(player.x), y=Math.round(player.y);
+    ctx.fillStyle="#294b4255";
+    ctx.beginPath(); ctx.ellipse(x,y,12,4,0,0,Math.PI*2); ctx.fill();
+    if (!sprite.naturalWidth) {
+      rect(x-4,y-12,8,10,"#22382f"); rect(x-4,y-19,8,7,"#e1ab79");
+      return;
+    }
+    const [sx,sy,sw,sh]=views[player.face];
+    const iw=sprite.naturalWidth, ih=sprite.naturalHeight;
+    const h=61, w=h*(sw*iw)/(sh*ih);
+    ctx.drawImage(sprite,sx*iw,sy*ih,sw*iw,sh*ih,
+      Math.round(x-w/2),Math.round(y-h-bob),Math.round(w),h);
+  }
+  function project(x,y,r){
+    const clamp=(v,a,b)=>Math.max(Math.min(a,b),Math.min(Math.max(a,b),v));
+    return {x:clamp(x,r.a.x,r.b.x),y:clamp(y,r.a.y,r.b.y)};
+  }
+  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  function nearest(point){
+    let best;
+    for(const r of roads){
+      const foot=project(point.x,point.y,r), gap=distance(point,foot);
+      if(!best||gap<best.gap) best={r,foot,gap};
+    }
+    return best;
+  }
+  function walkable(x,y){
+    const match=nearest({x,y});
+    return match.gap<=match.r.width/2-2;
+  }
+  // Nối vị trí hiện tại và đích với mạng giao lộ, rồi chọn đường ngắn nhất.
+  function planPath(from,to){
+    const start=nearest(from),end=nearest(to);
+    if(start.r===end.r) return [start.foot,end.foot,to];
+    const cost=new Map(),previous=new Map(),unseen=new Set(nodes);
+    for(const n of [start.r.a,start.r.b])cost.set(n,distance(n,start.foot));
+    while(unseen.size){
+      let u;for(const n of unseen)if(!u||(cost.get(n)??Infinity)<(cost.get(u)??Infinity))u=n;
+      unseen.delete(u);
+      for(const [v,length] of u.edges){
+        const next=cost.get(u)+length;
+        if(next<(cost.get(v)??Infinity)){cost.set(v,next);previous.set(v,u)}
+      }
+    }
+    const finish=[end.r.a,end.r.b].sort((a,b)=>cost.get(a)+distance(a,end.foot)-cost.get(b)-distance(b,end.foot))[0];
+    const chain=[]; for(let n=finish;n;n=previous.get(n))chain.unshift(n);
+    return [start.foot,...chain,end.foot,to];
+  }
+  function travel(x,y,index=-1){
+    keys.clear();route=planPath(player,{x,y});openOnArrival=index;
+  }
+  const guide=document.querySelector("#guide");
+  const extra=document.querySelector("#extra");
+  function bonus(i){
+    extra.replaceChildren();
+    if(i===4){
+      const button=document.createElement("button");button.textContent="Mở trình phát";
+      button.onclick=()=>{
+        const video=document.createElement("iframe");video.title="RATHER LIE · Playboi Carti & The Weeknd";
+        video.src="https://www.youtube-nocookie.com/embed/fYD7YsSRHOY";
+        video.allow="encrypted-media; picture-in-picture; fullscreen";
+        video.referrerPolicy="strict-origin-when-cross-origin";button.replaceWith(video);
+      };
+      extra.append(button);
+    }
+    if(i===6){const image=document.createElement("img");image.src=sprite.src;image.alt="Hoàng Hà dưới dạng pixel, nhìn từ bốn hướng";extra.append(image)}
+    if(i===5){
+      let score=0,target=4;
+      const tally=document.createElement("p"),grid=document.createElement("div");
+      tally.setAttribute("role","status");grid.className="gamegrid";extra.append(tally,grid);
+      function refresh(){
+        tally.textContent=score===8?"Đủ 8 sao! Bạn đã phá đảo.":"Đã bắt "+score+" / 8 sao";
+        [...grid.children].forEach((b,k)=>{
+          b.textContent=k===target?"★":"·";b.classList.toggle("star",k===target);
+          b.setAttribute("aria-label",k===target?"Bắt sao":"Ô trống");b.disabled=score===8;
+        });
+      }
+      for(let k=0;k<9;k++){
+        const b=document.createElement("button");
+        b.onclick=()=>{if(k!==target)return;score++;target=(target+1+Math.floor(Math.random()*8))%9;refresh()};
+        grid.append(b);
+      }
+      refresh();
+    }
+  }
+
+  function openPlace(i) {
+    const p=places[i]; bonus(i);
+    route=[]; openOnArrival=-1; keys.clear();
+    document.querySelector("#panelTitle").textContent=p.title;
+    document.querySelector("#panelText").textContent=p.text;
+    const link=document.querySelector("#panelLink");
+    link.hidden=!p.href;
+    if(p.href) {
+      link.href=p.href; link.textContent=p.action;
+      link.target=p.href.startsWith("https:") ? "_blank" : "_self";
+      link.rel="noopener noreferrer";
+    }
+    document.querySelectorAll("#sections button").forEach(button => {
+      button.setAttribute("aria-current", String(Number(button.dataset.place) === i));
+    });
+    if(!panel.open) panel.showModal();
+  }
+  for(const i of [0,3,4,5,1,6,7,2]) {
+    const button=document.createElement("button");
+    button.dataset.place=i;
+    button.textContent=places[i].label;
+    document.querySelector("#sections").append(button);
+  }
+  const full=document.querySelector("#full");
+  const notice=document.querySelector("#notice");
+  full.hidden=!document.fullscreenEnabled;
+  full.onclick=async () => {
+    try {
+      if(document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      notice.textContent="";
+    } catch {
+      notice.textContent="Trình duyệt chưa cho phép bật chế độ toàn màn hình.";
+    }
+  };
+  document.addEventListener("fullscreenchange",()=>{
+    full.textContent=document.fullscreenElement ? "Thu nhỏ" : "Toàn màn hình";
+  });
+  document.querySelectorAll("[data-place]").forEach(button => {
+    button.onclick=()=>openPlace(Number(button.dataset.place));
+  });
+  document.querySelector("#closePanel").onclick=()=>panel.close();
+  panel.addEventListener("close",()=>canvas.focus({preventScroll:true}));
+  panel.addEventListener("close",()=>extra.replaceChildren());
+  const overview=document.querySelector("#overview"), pen=overview.getContext("2d");
+  const order=[0,3,1,7,4,5,6,2];
+  function showGuide(){
+    keys.clear();route=[];openOnArrival=-1;
+    pen.drawImage(town,0,0,480,270);
+    pen.textAlign="center";pen.font="bold 12px monospace";
+    order.forEach((i,k)=>{
+      const p=places[i],x=p.x*.3,y=p.y*.3-10;
+      pen.fillStyle="#213e34";pen.fillRect(x-8,y-11,16,16);pen.fillStyle="#fff3b9";pen.fillText(k+1,x,y+1);
+    });
+    pen.fillStyle="#fae247";pen.beginPath();pen.arc(player.x*.3,player.y*.3,4,0,7);pen.fill();
+    guide.showModal();
+  }
+  order.forEach((i,k)=>{
+    const b=document.createElement("button");b.textContent=(k+1)+" · "+places[i].label;
+    b.onclick=()=>{guide.close();travel(places[i].x,places[i].y,i)};
+    document.querySelector("#stops").append(b);
+  });
+  document.querySelector("#atlas").onclick=showGuide;
+  document.querySelector("#dismiss").onclick=()=>guide.close();
+  interact.onclick=()=>{ if(near>=0) openPlace(near); };
+
+  window.addEventListener("keydown",event=>{
+    if(panel.open || guide.open || event.ctrlKey || event.metaKey || event.altKey) return;
+    const k=event.key.toLowerCase();
+    if(directions[k]) {
+      event.preventDefault(); keys.add(k); route=[]; openOnArrival=-1;
+    }
+    if(k==="e" && !event.repeat && near>=0) openPlace(near);
+  });
+  window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+  window.addEventListener("blur",()=>keys.clear());
+
+  canvas.addEventListener("pointerdown",event=>{
+    canvas.focus({preventScroll:true});
+    const bounds=canvas.getBoundingClientRect();
+    let x=(event.clientX-bounds.left)*W/bounds.width;
+    let y=(event.clientY-bounds.top)*H/bounds.height;
+    const index=places.findIndex(p=>Math.abs(x-p.x)<63 && y>=p.y-130 && y<=p.y+28);
+    if(index>=0){x=places[index].x;y=places[index].y}
+    if(walkable(x,y)) travel(x,y,index);
+  });
+
+  const world=document.querySelector(".world");
+  let scale, overflowX, overflowY;
+  function followPlayer() {
+    const offsetX=Math.max(0,Math.min(overflowX,player.x*scale-world.clientWidth/2));
+    const offsetY=Math.max(0,Math.min(overflowY,player.y*scale-world.clientHeight*.65));
+    canvas.style.transform='translate('+Math.round(-offsetX)+'px,'+Math.round(-offsetY)+'px)';
+  }
+  function fitWorld() {
+    scale=Math.max(world.clientWidth/920,world.clientHeight/550,1);
+    canvas.style.width=(W*scale)+'px';
+    canvas.style.height=(H*scale)+'px';
+    overflowX=W*scale-world.clientWidth;
+    overflowY=H*scale-world.clientHeight;
+    followPlayer();
+  }
+  new ResizeObserver(fitWorld).observe(world);
+  fitWorld();
+  let last=performance.now();
+  function frame(now) {
+    const dt=Math.min((now-last)/1000,.04);
+    last=now;
+    let dx=0, dy=0;
+    const speed=180;
+    if(!panel.open && !guide.open) {
+      for(const k of keys) { dx+=directions[k][0]; dy+=directions[k][1]; }
+      const length=Math.hypot(dx,dy);
+      if(length) {
+        dx=dx/length*speed*dt; dy=dy/length*speed*dt;
+      } else if(route.length) {
+        const target=route[0];
+        const gapX=target.x-player.x, gapY=target.y-player.y;
+        const dist=Math.hypot(gapX,gapY);
+        const fraction=dist ? Math.min(1,speed*dt/dist) : 1;
+        dx=gapX*fraction; dy=gapY*fraction;
+        if(fraction===1) route.shift();
+      }
+    }
+    const oldX=player.x, oldY=player.y;
+    if(walkable(player.x+dx,player.y)) player.x+=dx;
+    if(walkable(player.x,player.y+dy)) player.y+=dy;
+    const moving=oldX!==player.x || oldY!==player.y;
+    if(moving) {
+      player.face=Math.abs(dx)>Math.abs(dy) ? (dx<0?1:3) : (dy<0?2:0);
+      player.step+=dt*11;
+    }
+    near=places.findIndex(p=>distance(player,p)<32);
+    if(!route.length && openOnArrival>=0 && near===openOnArrival) openPlace(near);
+    const prompt=near>=0 ? `Mở ${places[near].label} (E)` : "Đi đến một cánh cửa";
+    if(interact.textContent!==prompt) interact.textContent=prompt;
+    interact.disabled=near<0;
+    ctx.drawImage(town,0,0);
+    drawPlayer(moving);
+    if(moving) {
+      followPlayer();
+      document.querySelector("#district").textContent=player.y<520
+        ? (player.x<river?"Phố bên hồ":"Khu nhà kính")
+        : (player.x<river?"Phố âm thanh & arcade":"Bến xưởng");
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
